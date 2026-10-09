@@ -31,7 +31,7 @@ def main():
     socket.connect("tcp://localhost:5555")
 
     sensor = MoisturePercent(dry_voltage=3.27, wet_voltage=0.50)
-    SAMPLE_INTERVAL = 5
+    INTERVAL = 5
 
     print("Soil Moisture sensor node running...")
 
@@ -52,7 +52,7 @@ def main():
             response = socket.recv_json()  # Wait for confirmation response
 
             print(f"Sent: {voltage:.3f}V, {moisture:.1f}% | ACK: {response.get('status')}")
-            time.sleep(SAMPLE_INTERVAL)
+            time.sleep(INTERVAL)
     except KeyboardInterrupt:
         print("\nStopping soil moisture node.")
 
