@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB = os.getenv("DB_PATH")
-CHANNEL = os.getenv("CHANNEL")
+CHANNEL = int(os.getenv("CHANNEL"))
 TOKEN = os.getenv("TOKEN")
 
 intents = discord.Intents.default()
@@ -18,7 +19,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-@tasks.loop(minutes=10)
+@tasks.loop(minutes=14)
 async def check_database_activity():    
     if not os.path.exists(DB):
         return
@@ -26,16 +27,18 @@ async def check_database_activity():
     mtime = os.path.getmtime(DB)
     last_modified = datetime.fromtimestamp(mtime)
     diff = datetime.now() - last_modified
-    
+
     channel = bot.get_channel(CHANNEL)
     if not channel:
+        print("no channel")
         return
+    
 
     if diff.total_seconds() > 1800:
-        await channel.send("Database has not been edited for over 1 hour!")
+        await channel.send("<@everyone> Database has not been edited for over half an hour!")
         
     elif diff.total_seconds() <= 1800:
-        await channel.send("Database is active again and has received new data updates.")
+        await channel.send("<@everyone> Database is active again and has received new data updates.")
 
 @bot.event
 async def on_ready():
@@ -55,16 +58,16 @@ async def dbstatus(ctx):
         diff = datetime.now() - last_modified
         time_diff = diff.total_seconds() / 1800
         
-        embed = discord.Embed(title="Database Monitor (Local Time)", color=discord.Color.blue())
+        embed = discord.Embed(title="Database Monitor", color=discord.Color.blue())
         embed.add_field(name="File", value=f"`{os.path.basename(DB)}`", inline=False)
         embed.add_field(name="Last Modified", value=f"<t:{int(mtime)}:R>", inline=True) # Discord handles relative time dynamically for each user
         
         if time_diff > 1:
             embed.color = discord.Color.red()
-            embed.description = f"<@everyone> The database has not been edited for over an hour!\nLast modified at: `{last_modified.strftime('%Y-%m-%d %H:%M:%S')}`"
+            embed.description = f"<@everyone> The database has not been edited for over half an hour!\nLast modified at: `{last_modified.strftime('%Y-%m-%d %H:%M:%S')}`"
         else:
             embed.color = discord.Color.green()
-            embed.description = f"The database was recently updated.\nLast modified at: `{last_modified.strftime('%Y-%m-%d %H:%M:%S')}`"
+            embed.description = f"<@everyone> The database was recently updated.\nLast modified at: `{last_modified.strftime('%Y-%m-%d %H:%M:%S')}`"
             
         await ctx.send(embed=embed)
         
