@@ -154,7 +154,7 @@ class Sensors:
 
 def main():
     hub = Sensors()
-    print("Agricultural Hub node running...")
+    print("Running...")
 
     try:
         while True:
