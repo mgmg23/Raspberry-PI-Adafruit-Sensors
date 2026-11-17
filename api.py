@@ -12,22 +12,23 @@ def init():
 
 @app.get("/")
 def home():
-    return [
-        {"Append the table type you want to the link above."},
-        {"Table types": "soilMoisture, tempHumidityPressureGas, phSensor, npkSensor"}
-    ]
+    return {"message": "Append the table type you want to the link above: soilMoisture, tempHumidityPressureGas, phSensor, npkSensor"}
     
 @app.get("/{table}")
 def get(table: str):
-    if table.lower() not in ["soilmoisture", "temphumiditypressuregas", "phsensor", "npksensor"]:
+    if table.lower() not in ["soilmoisture", "thpg", "phsensor", "npksensor"]:
         return {"Invalid table."}
     
-    cursor = init().cursor()
+    context = init()
+    cursor = context.cursor()
+
     try:
-        cursor.execute(f"SELECT * FROM {table}")
+        query = f"SELECT id, sensor, voltage, moisturePercent, datetime(timestamp, 'localtime') AS datetime FROM {table}"
+        cursor.execute(query)
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
         return {"error": str(e)}
     finally:
         cursor.close()
+        context.close()

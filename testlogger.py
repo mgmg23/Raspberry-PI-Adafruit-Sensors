@@ -32,7 +32,7 @@ def init_db():
         """)
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS tempHumidityPressureGas (
+            CREATE TABLE IF NOT EXISTS THPG (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sensor TEXT,
                 temperature REAL,
@@ -81,7 +81,7 @@ def process_payload(cursor, payload: dict):
             ))
         case "temp_humidity_pressure_gas":
             cursor.execute("""
-                INSERT INTO tempHumidityPressureGas (sensor, temperature, humidity, pressure, gas)
+                INSERT INTO thpg (sensor, temperature, humidity, pressure, gas)
                 VALUES (?, ?, ?, ?, ?);
             """, (
                 payload.get("sensor"),
@@ -142,7 +142,9 @@ def main():
     except KeyboardInterrupt:
         print("\nStopping database writer service...")
     finally:
+        socket.close()
         conn.close()
+        context.term() 
 
 if __name__ == "__main__":
     main()
