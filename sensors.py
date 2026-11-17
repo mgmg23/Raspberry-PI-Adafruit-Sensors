@@ -7,6 +7,8 @@ import zmq
 import adafruit_ads1x15.ads1115 as ADS
 import adafruit_bme680
 
+import pytest
+
 from adafruit_ads1x15.analog_in import AnalogIn
 from pymodbus.client import ModbusSerialClient
 from pymodbus.exceptions import ModbusException
@@ -82,7 +84,7 @@ class Sensors:
         moisture1 = max(0, min(100, (self.dry_voltage - voltage1) / (self.dry_voltage - self.wet_voltage) * 100))
         moisture2 = max(0, min(100, (self.dry_voltage - voltage2) / (self.dry_voltage - self.wet_voltage) * 100))
         return voltage1, voltage2, moisture1, moisture2
-
+    
     def read_bme(self):
         try:
             return {
@@ -94,7 +96,7 @@ class Sensors:
         except Exception as e:
             print(f"Error reading BME680: {e}")
         return None
-
+    
     def read_ph(self):
         try:
             result = self.client.read_holding_registers(
@@ -107,16 +109,8 @@ class Sensors:
                 print("Modbus error (pH):", result)
                 return None
             else:
-                # (raw reading, true buffer value)
-                P1 = (3.74, 4.00)
-                P2 = (520, 7.90)   # fill in your pH 7 reading
-
-                SLOPE = (P2[1] - P1[1]) / (P2[0] - P1[0])
-                OFFSET = P1[1] - SLOPE * P1[0]
-
-
                 raw = result.registers[0]
-                return SLOPE * raw + OFFSET
+                return raw / 100.0
 
         except ModbusException as error:
             print("Communication error (pH):", error)
@@ -133,9 +127,7 @@ class Sensors:
 
         time.sleep(0.05)
         response = self.ser.read(7)
-        print([hex(b) for b in response])
 
-        # Verify we received the expected 7-byte Modbus packet
         if len(response) == 7:
             # Combine High Byte (index 3) and Low Byte (index 4) into a full 16-bit integer
             value = (response[3] << 8) | response[4]
@@ -175,7 +167,7 @@ def main():
             # 1. Read Soil Moisture safely on the shared bus
             print("\n")
             try:
-                voltage1, voltage2, moisture1, moisture2 = None, None, None, None #hub.read_soil()
+                voltage1, voltage2, moisture1, moisture2 = hub.read_soil()
                 if voltage1 and moisture1:
                     soil_payload1 = {
                         "type": "soil_moisture",
@@ -206,7 +198,8 @@ def main():
 
             # 2. Read BME680 safely on the shared bus
             try:
-                bme_data = None #hub.read_bme()
+                bme_data = hub.read_bme()
+                print(bme_data)
                 if bme_data:
                     bme_payload = {
                         "type": "temp_humidity_pressure_gas",
@@ -240,7 +233,7 @@ def main():
 
             # 4. Read NPK Sensor (Modbus)
             try:
-                # npk_data = hub.read_npk()
+                npk_data = hub.read_npk()
                 if npk_data is not None:
                     npk_payload = {
                         "type": "soil_npk",

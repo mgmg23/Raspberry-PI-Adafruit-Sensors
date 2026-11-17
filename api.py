@@ -19,7 +19,15 @@ def home():
     
 @app.get("/{table}")
 def get(table: str):
+    if table not in ["soilMoisture", "tempHumidityPressureGas", "phSensor", "npkSensor"]:
+        return {"Invalid table."}
+    
     cursor = init().cursor()
+    try:
     cursor.execute(f"SELECT * FROM {table}")
-    rows = cursor.fetchall()
-    return [dict(row) for row in rows]
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        return {"error": str(e)}
+    finally:
+        cursor.close()
