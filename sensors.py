@@ -47,8 +47,8 @@ class Sensors:
 
         # pH Sensor Configurations & Active Probe Discovery
         self.ph_configs = [
-            # {"sensor_id": "ph_bed_1", "slave_id": 1, "register": 6},
-            # {"sensor_id": "ph_bed_2", "slave_id": 2, "register": 6} 
+            {"sensor_id": "ph_bed_1", "slave_id": 3, "register": 6},
+            {"sensor_id": "ph_bed_2", "slave_id": 4, "register": 6} 
         ]
         
         active_ph_probes = []
@@ -58,12 +58,23 @@ class Sensors:
                 active_ph_probes.append(cfg)
             else:
                 print(f"WARNING: pH Sensor '{cfg['sensor_id']}' (Slave ID {cfg['slave_id']}) did not respond. Skipping.")
-        # self.ph_configs = active_ph_probes
+        self.ph_configs = active_ph_probes
 
         # NPK Sensor Configurations
         self.npk_configs = [
-            {"sensor_id": "npk_bed_1", "slave_id": 1, "start_register": 0}
+            {"sensor_id": "npk_bed_1", "slave_id": 1, "start_register": 30},
+            {"sensor_id": "npk_bed_2", "slave_id": 2, "start_register": 30}
         ]
+        
+        active_npk_probes = []
+        for cfg in self.npk_configs:
+            if self._test_probe(cfg["slave_id"], cfg["start_register"]):
+                print(f"NPK Sensor '{cfg['sensor_id']}' (Slave ID {cfg['slave_id']}) is connected.")
+                active_npk_probes.append(cfg)
+            else:
+                print(f"WARNING: NPK Sensor '{cfg['sensor_id']}' (Slave ID {cfg['slave_id']}) did not respond. Skipping.")
+        self.npk_configs = active_npk_probes
+
 
         # ZMQ Setup
         self.context = zmq.Context()
@@ -148,6 +159,7 @@ def main():
     try:
         while True:
             # 1. Read Soil Moisture safely on the shared bus
+            print("\n")
             try:
                 voltage, moisture = hub.read_soil()
                 soil_payload = {
