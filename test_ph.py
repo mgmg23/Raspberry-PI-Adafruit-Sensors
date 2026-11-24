@@ -2,10 +2,10 @@ import time
 from pymodbus.client import ModbusSerialClient
 from pymodbus.exceptions import ModbusException
 
-PORT = "/dev/ttyUSB0"
+PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_BH00L2OR-if00-port0"
 BAUDRATE = 9600
 SLAVE_ID = 1
-PH_REGISTER = 6
+PH_REGISTER = 0x06
 
 client = ModbusSerialClient(
     port=PORT,
