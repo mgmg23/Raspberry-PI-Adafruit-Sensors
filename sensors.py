@@ -40,7 +40,7 @@ class Sensors:
         self.ph_port = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_BH00L2OR-if00-port0"
         self.ph_baudrate = 9600
         self.ph_slave_id = 1
-        self.ph_register = 0x06
+        self.ph_register = 0x0006
         self.ph_sensor_id = "ph_bed_1"
 
         self.client = ModbusSerialClient(
