@@ -3,4 +3,4 @@ __pycache__/
 *.csv
 ads_test.py
 sensor_data.db
-
+.env
