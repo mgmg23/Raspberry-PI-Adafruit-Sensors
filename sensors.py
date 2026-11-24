@@ -1,10 +1,3 @@
-"""
-INCLUDED SENSORS
-SOIL MOISTURE (ADS1115)
-TEMPERATURE, HUMIDITY, PRESSURE, GAS (BME680)
-PH SENSOR (MODBUS)
-"""
-
 import time
 import json
 import board
@@ -34,11 +27,9 @@ class Sensors:
         self.bme = adafruit_bme680.Adafruit_BME680_I2C(self.i2c, address=0x77)
         self.bme.sea_level_pressure = 1013.25
         
-        # Initialize PH Sensor (Modbus)
+        # Initialize Modbus Serial Connection
         self.port = "/dev/ttyUSB0"
         self.baudrate = 9600
-        self.slave_id = 1
-        self.ph_register = 6
         self.client = ModbusSerialClient(
             port=self.port,
             baudrate=self.baudrate,
@@ -48,20 +39,48 @@ class Sensors:
             timeout=2,
             retries=1
         )
-
+        
         if not self.client.connect():
             raise SystemExit(f"Could not open {self.port}")
 
-        print(
-            f"Connected to {self.port} at {self.baudrate} baud, "
-            f"slave ID {self.slave_id}"
-        )
+        print(f"Connected to {self.port} at {self.baudrate} baud.")
+
+        # pH Sensor Configurations & Active Probe Discovery
+        self.ph_configs = [
+            # {"sensor_id": "ph_bed_1", "slave_id": 1, "register": 6},
+            # {"sensor_id": "ph_bed_2", "slave_id": 2, "register": 6} 
+        ]
+        
+        active_ph_probes = []
+        for cfg in self.ph_configs:
+            if self._test_probe(cfg["slave_id"], cfg["register"]):
+                print(f"pH Sensor '{cfg['sensor_id']}' (Slave ID {cfg['slave_id']}) is connected.")
+                active_ph_probes.append(cfg)
+            else:
+                print(f"WARNING: pH Sensor '{cfg['sensor_id']}' (Slave ID {cfg['slave_id']}) did not respond. Skipping.")
+        # self.ph_configs = active_ph_probes
+
+        # NPK Sensor Configurations
+        self.npk_configs = [
+            {"sensor_id": "npk_bed_1", "slave_id": 1, "start_register": 0}
+        ]
 
         # ZMQ Setup
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         self.socket.connect(f"tcp://localhost:{zmq_port}")
 
+    def _test_probe(self, slave_id, register):
+        try:
+            result = self.client.read_holding_registers(
+                address=register,
+                count=1,
+                device_id=slave_id,
+            )
+            return not result.isError()
+        except Exception:
+            return False
+        
     def read_soil(self):
         voltage = self.soil_chan.voltage
         moisture = max(0, min(100, (self.dry_voltage - voltage) / (self.dry_voltage - self.wet_voltage) * 100))
@@ -79,25 +98,48 @@ class Sensors:
             print(f"Error reading BME680: {e}")
         return None
     
-    def read_ph(self):
+    def read_ph(self, slave_id, register):
         try:
             result = self.client.read_holding_registers(
-                address=self.ph_register,
+                address=register,
                 count=1,
-                device_id=self.slave_id,
+                device_id=slave_id,
             )
 
             if result.isError():
-                print("Modbus error:", result)
+                print(f"Modbus error (pH Slave {slave_id}):", result)
                 return None
             else:
                 raw = result.registers[0]
-                ph = raw / 100.0
-                return ph
+                return raw / 100.0
 
         except ModbusException as error:
-            print("Communication error:", error)
+            print(f"Communication error (pH Slave {slave_id}):", error)
         return None
+    
+    def read_npk(self, slave_id, start_register):
+        try:
+            # Reads 3 contiguous registers: N (start), P (start+1), K (start+2)
+            result = self.client.read_holding_registers(
+                address=start_register,
+                count=3,
+                device_id=slave_id,
+            )
+
+            if result.isError():
+                print(f"Modbus error (NPK Slave {slave_id}):", result)
+                return None
+            else:
+                return {
+                    "nitrogen": float(result.registers[0]),
+                    "phosphorus": float(result.registers[1]),
+                    "potassium": float(result.registers[2])
+                }
+
+        except ModbusException as error:
+            print(f"Communication error (NPK Slave {slave_id}):", error)
+        return None
+
 
 def main():
     hub = Sensors()
@@ -110,6 +152,7 @@ def main():
                 voltage, moisture = hub.read_soil()
                 soil_payload = {
                     "type": "soil_moisture",
+                    "sensor": "soil1",
                     "voltage": round(voltage, 2),
                     "moisture_percent": round(moisture, 2)
                 }
@@ -124,9 +167,9 @@ def main():
             try:
                 bme_data = hub.read_bme()
                 if bme_data:
-                    print(bme_data)
                     bme_payload = {
                         "type": "temp_humidity_pressure_gas",
+                        "sensor": "bme680_1",
                         "temperature": round(bme_data["temperature"], 2),
                         "humidity": round(bme_data["humidity"], 2),
                         "pressure": round(bme_data["pressure"], 2),
@@ -139,24 +182,45 @@ def main():
 
             time.sleep(1.0)
             
-            # 3. Read pH Sensor
-            try:
-                ph_value = hub.read_ph()
-                if ph_value is not None:
-                    print(f"pH Value: {ph_value}")
-                    ph_payload = {
-                        "type": "ph_sensor",
-                        "ph_value": float(ph_value)
-                    }
-                    hub.socket.send_string(json.dumps(ph_payload))
-                    print(f"pH Sent | ACK: {hub.socket.recv_json().get('status')}")
-            except Exception as e:
-                print(f"pH Read Error: {e}")
-
-            time.sleep(3.0)
-
+            # 3. Read pH Sensors
+            for cfg in hub.ph_configs:
+                try:
+                    ph_value = hub.read_ph(cfg["slave_id"], cfg["register"])
+                    if ph_value is not None:
+                        ph_payload = {
+                            "type": "ph_sensor",
+                            "sensor": cfg["sensor_id"],
+                            "ph_value": round(ph_value, 2)
+                        }
+                        hub.socket.send_string(json.dumps(ph_payload))
+                        print(f"pH ({cfg['sensor_id']}) Sent | ACK: {hub.socket.recv_json().get('status')}")
+                except Exception as e:
+                    print(f"pH Read Error ({cfg['sensor_id']}): {e}")
+                time.sleep(0.5) # Brief pause between polling different Modbus IDs
+                
+            # 4. Read NPK Sensors (Modbus)
+            for cfg in hub.npk_configs:
+                try:
+                    npk_data = hub.read_npk(cfg["slave_id"], cfg["start_register"])
+                    if npk_data is not None:
+                        npk_payload = {
+                            "type": "soil_npk",
+                            "sensor_id": cfg["sensor_id"],
+                            "nitrogen": npk_data["nitrogen"],
+                            "phosphorus": npk_data["phosphorus"],
+                            "potassium": npk_data["potassium"]
+                        }
+                        hub.socket.send_string(json.dumps(npk_payload))
+                        print(f"NPK ({cfg['sensor_id']}) Sent | ACK: {hub.socket.recv_json().get('status')}")
+                except Exception as e:
+                    print(f"NPK Read Error ({cfg['sensor_id']}): {e}")
+                time.sleep(0.5)
+            
+            time.sleep(2)
+            
     except KeyboardInterrupt:
         print("\nStopping hub node.")
+
 
 if __name__ == "__main__":
     main()
