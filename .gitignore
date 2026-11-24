@@ -2,5 +2,19 @@ venv/
 __pycache__/
 *.csv
 ads_test.py
-sensor_data.db
 .env
+
+*.db
+*.sqlite
+*.sqlite3
+
+# SQLite temporary/journal files (WAL mode & rollback journals)
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
