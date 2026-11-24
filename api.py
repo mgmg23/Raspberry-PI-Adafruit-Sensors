@@ -30,8 +30,8 @@ def export_all_to_single_csv():
                 all_dfs.append(df)
                 
         combined_df = pd.concat(all_dfs, ignore_index=True)        
-        combined_df.to_csv("all_sensors_combined.csv", index=False)
+        combined_df.to_csv("sensor_data.csv", index=False)
         
-        return {"status": "success", "message": "Combined all tables into all_sensors_combined.csv"}
+        return {"status": "success"}
     except Exception as e:
         return {"error": str(e)}
