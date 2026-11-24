@@ -32,7 +32,7 @@ def init_db():
         """)
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS THPG (
+            CREATE TABLE IF NOT EXISTS thpg (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sensor TEXT,
                 temperature REAL,
